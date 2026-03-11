@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>美業計算機</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Noto Sans TC', sans-serif; transition: background 0.4s ease; margin: 0; padding: 0 0 120px 0; -webkit-tap-highlight-color: transparent; }
+    .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 100; align-items: center; justify-content: center; }
+    .modal.active { display: flex; }
+    .service-card { border-radius: 1.5rem; background: white; border: 1px solid rgba(0,0,0,0.03); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02); }
+    .gear-icon { width: 22px; height: 22px; background: #8e8e8e; position: relative; border-radius: 50%; }
+    .gear-icon::before { content: ""; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 10px; height: 10px; background: white; border-radius: 50%; z-index: 2; }
+    .gear-icon::after { content: ""; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 26px; height: 26px; border-radius: 50%; border: 4px dotted #8e8e8e; z-index: 1; }
+    body.theme-gray   { background-color: #f2f2f2; } .theme-gray   .text-shop { color: #4a4a4a; } .theme-gray   .bg-total { background-color: #333333; }
+    body.theme-yellow { background-color: #f7f3e9; } .theme-yellow .text-shop { color: #8c7e6d; } .theme-yellow .bg-total { background-color: #5d4037; }
+    body.theme-pink   { background-color: #f5eceb; } .theme-pink   .text-shop { color: #a67c7c; } .theme-pink   .bg-total { background-color: #6d4c4c; }
+    body.theme-blue   { background-color: #ebf1f5; } .theme-blue   .text-shop { color: #708191; } .theme-blue   .bg-total { background-color: #34495e; }
+    .tab-btn.active { border-bottom: 3px solid #333; color: #333; font-weight: bold; }
+    .border-selected { border: 4px solid #4a4a4a !important; }
+  </style>
+</head>
+<body class="theme-gray">
+
+  <div class="max-w-md mx-auto p-6">
+    <!-- 標題列 -->
+    <div class="flex justify-between items-start mb-10 mt-4">
+      <div>
+        <h1 id="display-shop-name" class="text-2xl font-bold text-shop tracking-tight">美甲工作室</h1>
+        <p id="display-sub-name" class="text-[10px] text-gray-400 font-medium tracking-[0.3em] uppercase mt-1">NAIL STUDIO</p>
+      </div>
+      <button onclick="toggleModal(true)" class="w-12 h-12 bg-white rounded-2xl shadow-sm border border-gray-100 flex items-center justify-center active:scale-90 transition">
+        <div class="gear-icon"></div>
+      </button>
+    </div>
+
+    <!-- 計算機主體 -->
+    <div id="calculator-content" class="space-y-12"></div>
+
+    <!-- 總計區 -->
+    <div class="mt-16 pt-10 border-t border-gray-200/60">
+      <div id="summary-panel" class="bg-white/80 backdrop-blur-md rounded-[2rem] p-6 shadow-sm mb-6 hidden border border-white">
+        <h3 class="text-[10px] font-bold text-gray-400 mb-4 uppercase tracking-widest text-center font-sans">已選明細 Details</h3>
+        <div id="summary-items" class="space-y-3 text-sm text-gray-600 font-medium font-sans"></div>
+      </div>
+      <div id="total-bar" class="bg-total text-white p-7 rounded-[2rem] shadow-2xl flex justify-between items-center transition-all">
+        <div>
+          <p class="text-gray-400 text-[10px] tracking-widest uppercase mb-1">Total</p>
+          <p class="text-4xl font-bold font-mono" id="grand-total">$0</p>
+        </div>
+        <div class="flex flex-col gap-2">
+          <button onclick="copyDetail()" class="bg-white/10 px-6 py-2 rounded-xl text-xs font-bold active:scale-95 transition border border-white/10">複製</button>
+          <button onclick="resetCart()" class="bg-gray-500/30 px-6 py-2 rounded-xl text-xs font-bold active:scale-95 transition border border-white/5">清除</button>
+        </div>
+      </div>
+      <p class="text-center text-gray-400 text-[9px] mt-8 tracking-widest pb-10 font-sans">※ 實際價格依現場報價為主</p>
+    </div>
+  </div>
+
+  <!-- 設定視窗 -->
+  <div id="settings-modal" class="modal">
+    <div class="bg-white w-full max-w-sm mx-4 rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+      <!-- 分頁標籤列（新增「備份」頁） -->
+      <div class="flex border-b bg-gray-50/50">
+        <button onclick="switchTab('style')"  id="tab-style"  class="tab-btn flex-1 py-4 text-xs text-gray-400 active font-bold">風格設定</button>
+        <button onclick="switchTab('items')"  id="tab-items"  class="tab-btn flex-1 py-4 text-xs text-gray-400 font-bold">項目管理</button>
+        <button onclick="switchTab('backup')" id="tab-backup" class="tab-btn flex-1 py-4 text-xs text-gray-400 font-bold">備份</button>
+        <button onclick="toggleModal(false)" class="px-5 text-gray-300 text-xl font-bold">✕</button>
+      </div>
+
+      <div class="p-6 overflow-y-auto flex-1">
+
+        <!-- 風格設定 -->
+        <div id="page-style" class="space-y-6">
+          <div class="space-y-2">
+            <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest font-sans">工作室名稱</label>
+            <input id="input-shop-name" type="text" class="w-full p-4 bg-gray-50 rounded-2xl text-sm outline-none border border-transparent focus:border-gray-200 font-sans">
+          </div>
+          <div class="space-y-2">
+            <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest font-sans">副標題 (Subtitle)</label>
+            <input id="input-sub-name" type="text" class="w-full p-4 bg-gray-50 rounded-2xl text-sm outline-none border border-transparent focus:border-gray-200 font-sans">
+          </div>
+          <div class="space-y-2">
+            <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest font-sans">主題配色</label>
+            <div class="grid grid-cols-4 gap-3" id="theme-selectors">
+              <button onclick="setTheme('gray')"   id="btn-theme-gray"   class="h-10 bg-[#8e8e8e] rounded-xl"></button>
+              <button onclick="setTheme('yellow')" id="btn-theme-yellow" class="h-10 bg-[#d1ccc0] rounded-xl"></button>
+              <button onclick="setTheme('pink')"   id="btn-theme-pink"   class="h-10 bg-[#d1a3a4] rounded-xl"></button>
+              <button onclick="setTheme('blue')"   id="btn-theme-blue"   class="h-10 bg-[#778ca3] rounded-xl"></button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 項目管理 -->
+        <div id="page-items" class="hidden space-y-6">
+          <div id="items-manage-content"></div>
+        </div>
+
+        <!-- 備份頁（新增功能） -->
+        <div id="page-backup" class="hidden space-y-6">
+          <div class="space-y-3">
+            <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">⬇ 匯出備份</p>
+            <p class="text-xs text-gray-400 leading-relaxed">
+              將所有設定和項目存成 .json 備份檔，換瀏覽器或換手機時可以匯入還原。
+            </p>
+            <button onclick="exportData()" class="w-full py-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-2xl font-bold text-sm transition">
+              下載備份檔案
+            </button>
+          </div>
+          <hr class="border-gray-100">
+          <div class="space-y-3">
+            <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">⬆ 匯入備份</p>
+            <p class="text-xs text-gray-400 leading-relaxed">
+              選擇之前匯出的備份檔。<span class="text-red-300 font-bold">注意：會覆蓋目前所有設定。</span>
+            </p>
+            <!-- 偽裝成按鈕的 file input -->
+            <label class="block w-full py-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-2xl font-bold text-sm text-center cursor-pointer transition">
+              選擇備份檔案
+              <input type="file" accept=".json" onchange="importData(event)" class="hidden">
+            </label>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- 儲存按鈕（備份頁不顯示） -->
+      <div id="save-footer" class="p-6 bg-gray-50 border-t">
+        <button onclick="saveAndClose()" class="w-full py-4 bg-gray-800 text-white rounded-2xl font-bold shadow-lg">儲存並完成設定</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const KEY_DATA = 'nail_v2024_public_data';
+    const KEY_CONF = 'nail_v2024_public_conf';
+
+    // 預設資料
+    let config = { shopName: '美甲工作室', subName: 'NAIL STUDIO', theme: 'gray' };
+    let data = [
+      { id: 'c1', category: "手部美甲 HAND SALON", items: [{ id: "i1", name: "基礎保養", price: 500 }, { id: "i2", name: "單色", price: 800 }] },
+      { id: 'c2', category: "卸甲 GET OFF",        items: [{ id: "i3", name: "純卸甲",  price: 450 }] }
+    ];
+    let cart = {};
+
+    // ────────────────────────────────────────────
+    // 初始化：從 localStorage 讀取已儲存的資料
+    // ────────────────────────────────────────────
+    function init() {
+      const savedConf = localStorage.getItem(KEY_CONF);
+      const savedData = localStorage.getItem(KEY_DATA);
+      if (savedConf) config = JSON.parse(savedConf);
+      if (savedData) data   = JSON.parse(savedData);
+      updateThemeUI();
+      render();
+    }
+
+    // ────────────────────────────────────────────
+    // 儲存輔助：立即寫入 localStorage（不需要 reload）
+    // ────────────────────────────────────────────
+    function persistData() {
+      // 只存項目資料（分類/服務）
+      localStorage.setItem(KEY_DATA, JSON.stringify(data));
+    }
+    function persistAll() {
+      // 同時存設定 + 項目資料
+      localStorage.setItem(KEY_CONF, JSON.stringify(config));
+      localStorage.setItem(KEY_DATA, JSON.stringify(data));
+    }
+
+    // ────────────────────────────────────────────
+    // 設定視窗開關
+    // ────────────────────────────────────────────
+    function toggleModal(show) {
+      document.getElementById('settings-modal').classList.toggle('active', show);
+      if (show) {
+        document.getElementById('input-shop-name').value = config.shopName;
+        document.getElementById('input-sub-name').value  = config.subName;
+        switchTab('style');
+      }
+    }
+
+    function switchTab(tab) {
+      ['style', 'items', 'backup'].forEach(t => {
+        document.getElementById(`page-${t}`).classList.toggle('hidden', t !== tab);
+        document.getElementById(`tab-${t}`).classList.toggle('active', t === tab);
+      });
+      // 備份頁不需要「儲存並完成設定」按鈕
+      document.getElementById('save-footer').classList.toggle('hidden', tab === 'backup');
+      if (tab === 'items') renderManageArea();
+    }
+
+    // ────────────────────────────────────────────
+    // 主題設定
+    // ────────────────────────────────────────────
+    function setTheme(t) { config.theme = t; updateThemeUI(); }
+
+    function updateThemeUI() {
+      document.body.className = `theme-${config.theme}`;
+      document.getElementById('display-shop-name').innerText = config.shopName;
+      document.getElementById('display-sub-name').innerText  = config.subName;
+      document.querySelectorAll('#theme-selectors button').forEach(btn => btn.classList.remove('border-selected', 'border-4'));
+      document.getElementById(`btn-theme-${config.theme}`)?.classList.add('border-selected', 'border-4');
+    }
+
+    // ────────────────────────────────────────────
+    // 儲存並關閉（修復：移除不穩定的 window.location.reload()）
+    // 現在直接更新畫面，確保 100% 成功
+    // ────────────────────────────────────────────
+    function saveAndClose() {
+      config.shopName = document.getElementById('input-shop-name').value.trim() || '工作室';
+      config.subName  = document.getElementById('input-sub-name').value.trim()  || 'STUDIO';
+      persistAll();    // 立即寫入 localStorage
+      updateThemeUI(); // 直接更新畫面標題和主題，不需要重整頁面
+      render();
+      toggleModal(false);
+    }
+
+    // ────────────────────────────────────────────
+    // 項目管理介面
+    // ────────────────────────────────────────────
+    function renderManageArea() {
+      const area = document.getElementById('items-manage-content');
+      area.innerHTML = `
+        <div class="space-y-3">
+          <h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">1. 分類排序與新增</h3>
+          <div id="category-list" class="space-y-2"></div>
+          <div class="flex gap-2">
+            <input id="new-cat-input" type="text" placeholder="新分類名稱" class="flex-1 p-3 bg-gray-50 rounded-xl text-sm outline-none">
+            <button onclick="addNewCat()" class="px-4 bg-gray-800 text-white rounded-xl text-sm font-bold">新增</button>
+          </div>
+        </div>
+        <hr class="border-gray-100">
+        <div class="space-y-3">
+          <h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">2. 服務項目新增</h3>
+          <div class="p-4 bg-gray-50 rounded-2xl space-y-3">
+            <select id="item-cat-select" class="w-full p-3 bg-white rounded-xl text-sm outline-none border-none">
+              ${data.map(d => `<option value="${d.id}">${d.category}</option>`).join('')}
+            </select>
+            <input id="new-item-name"  type="text"   placeholder="項目名稱" class="w-full p-3 bg-white rounded-xl text-sm outline-none">
+            <div class="flex gap-2">
+              <input id="new-item-price" type="number" placeholder="金額" class="w-1/2 p-3 bg-white rounded-xl text-sm outline-none">
+              <button onclick="addNewItem()" class="w-1/2 bg-gray-800 text-white rounded-xl text-sm font-bold">新增小項目</button>
+            </div>
+          </div>
+        </div>
+        <div id="items-sort-area" class="space-y-6"></div>
+      `;
+
+      // 分類列表（可拖曳排序）
+      const catList = document.getElementById('category-list');
+      data.forEach(cat => {
+        catList.innerHTML += `
+          <div class="flex justify-between items-center bg-gray-50 p-3 rounded-xl border border-gray-100" data-id="${cat.id}">
+            <div class="flex items-center gap-2">
+              <span class="cat-handle cursor-move text-gray-400">☰</span>
+              <span class="text-sm font-bold">${cat.category}</span>
+            </div>
+            <button onclick="deleteCat('${cat.id}')" class="text-red-300 text-xs">刪除</button>
+          </div>`;
+      });
+      new Sortable(catList, {
+        handle: '.cat-handle', animation: 150,
+        onEnd: () => {
+          const order = Array.from(catList.children).map(el => el.dataset.id);
+          data.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+          persistData(); // 拖曳完立即儲存
+          render();
+        }
+      });
+
+      // 各分類的服務項目（可拖曳排序）
+      // 修復：用 innerHTML = 一次性設定，避免 innerHTML += 造成的 DOM 重複問題
+      const sortArea = document.getElementById('items-sort-area');
+      let sortHTML = '';
+      data.forEach(cat => {
+        const itemRows = cat.items.map(item => `
+          <div class="flex justify-between items-center bg-white border border-gray-100 p-3 rounded-xl text-xs" data-id="${item.id}">
+            <div class="flex items-center gap-2">
+              <span class="item-handle cursor-move text-gray-300">☰</span>
+              <span>${item.name}</span>
+            </div>
+            <div class="flex items-center gap-3">
+              <b>$${item.price}</b>
+              <button onclick="deleteItem('${cat.id}', '${item.id}')" class="text-red-200">✕</button>
+            </div>
+          </div>`).join('');
+        sortHTML += `
+          <div class="space-y-2 mt-4">
+            <h4 class="text-[9px] font-bold text-gray-300 border-l-2 border-gray-200 pl-2 ml-1">${cat.category}</h4>
+            <div id="sort-items-${cat.id}" class="space-y-1">${itemRows}</div>
+          </div>`;
+      });
+      sortArea.innerHTML = sortHTML; // 一次設定，不用 +=
+
+      // 為每個分類初始化拖曳排序（不用 setTimeout，因為 HTML 已全部就位）
+      data.forEach(cat => {
+        const el = document.getElementById(`sort-items-${cat.id}`);
+        if (!el) return;
+        new Sortable(el, {
+          handle: '.item-handle', animation: 150,
+          onEnd: () => {
+            const order = Array.from(el.children).map(x => x.dataset.id);
+            cat.items.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+            persistData(); // 拖曳完立即儲存
+            render();
+          }
+        });
+      });
+    }
+
+    function addNewCat() {
+      const val = document.getElementById('new-cat-input').value.trim();
+      if (!val) return;
+      data.push({ id: 'c' + Date.now(), category: val, items: [] });
+      persistData(); // 新增分類後立即儲存
+      renderManageArea();
+    }
+
+    function deleteCat(id) {
+      if (confirm('刪除整類？')) {
+        data = data.filter(d => d.id !== id);
+        persistData(); // 刪除後立即儲存
+        render();
+        renderManageArea();
+      }
+    }
+
+    function addNewItem() {
+      const catId = document.getElementById('item-cat-select').value;
+      const name  = document.getElementById('new-item-name').value.trim();
+      const price = parseInt(document.getElementById('new-item-price').value);
+      if (!name || isNaN(price)) return;
+      data.find(d => d.id === catId).items.push({ id: 'i' + Date.now(), name, price });
+      persistData(); // 新增項目後立即儲存
+      renderManageArea();
+    }
+
+    function deleteItem(catId, itemId) {
+      const cat = data.find(d => d.id === catId);
+      cat.items = cat.items.filter(i => i.id !== itemId);
+      persistData(); // 刪除後立即儲存
+      renderManageArea();
+    }
+
+    // ────────────────────────────────────────────
+    // 主計算畫面渲染
+    // ────────────────────────────────────────────
+    function render() {
+      const content      = document.getElementById('calculator-content');
+      const summaryItems = document.getElementById('summary-items');
+      content.innerHTML = ''; summaryItems.innerHTML = '';
+      let total = 0, hasItem = false;
+
+      data.forEach(cat => {
+        if (cat.items.length === 0) return;
+        let h = `<div><h2 class="text-[10px] font-bold opacity-30 mb-5 tracking-widest uppercase border-b pb-2">${cat.category}</h2><div class="grid gap-4">`;
+        cat.items.forEach(item => {
+          const q = cart[item.id] || 0;
+          if (q > 0) {
+            hasItem = true;
+            total += q * item.price;
+            summaryItems.innerHTML += `<div class="flex justify-between items-center font-sans"><span>${item.name} ×${q}</span><b>$${q * item.price}</b></div>`;
+          }
+          h += `
+            <div class="service-card p-6 flex items-center justify-between shadow-sm">
+              <div class="font-bold text-gray-700 text-lg">${item.name} <span class="text-gray-300 ml-2 font-normal font-mono">$${item.price}</span></div>
+              <div class="flex items-center gap-5">
+                <button onclick="updateQty('${item.id}', -1)" class="w-10 h-10 rounded-2xl bg-gray-50 text-gray-400 font-bold active:bg-gray-100 transition">－</button>
+                <span class="font-bold text-lg">${q}</span>
+                <button onclick="updateQty('${item.id}', 1)"  class="w-10 h-10 rounded-2xl bg-gray-100 text-gray-800 font-bold active:bg-gray-200">＋</button>
+              </div>
+            </div>`;
+        });
+        content.innerHTML += h + `</div></div>`;
+      });
+
+      document.getElementById('grand-total').innerText = `$${total}`;
+      document.getElementById('summary-panel').classList.toggle('hidden', !hasItem);
+    }
+
+    function updateQty(id, b) { cart[id] = (cart[id] || 0) + b; if (cart[id] <= 0) delete cart[id]; render(); }
+    function resetCart()       { cart = {}; render(); }
+
+    function copyDetail() {
+      let t = `--- ${config.shopName} ---\n\n`; let total = 0;
+      data.forEach(c => c.items.forEach(i => { if (cart[i.id]) { t += `${i.name} x${cart[i.id]} = $${cart[i.id]*i.price}\n`; total += cart[i.id]*i.price; } }));
+      if (total === 0) return alert('尚未選擇任何項目');
+      t += `--------------------------\n總計：$${total}\n\n*實際價格依現場報價為主`;
+      navigator.clipboard.writeText(t).then(() => alert('複製成功！'));
+    }
+
+    // ────────────────────────────────────────────
+    // 備份功能（新增）
+    // ────────────────────────────────────────────
+    function exportData() {
+      // 把 config + data 打包成 JSON 檔案下載
+      const backup = {
+        config,
+        data,
+        exportedAt: new Date().toLocaleString('zh-TW')
+      };
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+      const a    = document.createElement('a');
+      a.href     = URL.createObjectURL(blob);
+      a.download = `美業計算機備份_${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    function importData(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          const backup = JSON.parse(e.target.result);
+          // 基本格式驗證
+          if (!backup.config || !backup.data) throw new Error('格式錯誤');
+          if (!confirm(`確定要匯入「${backup.config.shopName}」的備份嗎？\n匯出時間：${backup.exportedAt || '未知'}\n\n⚠️ 這會覆蓋目前所有設定！`)) return;
+          config = backup.config;
+          data   = backup.data;
+          cart   = {}; // 清空購物車
+          persistAll();
+          updateThemeUI();
+          render();
+          toggleModal(false);
+          alert('✅ 匯入成功！');
+        } catch {
+          alert('❌ 備份檔案格式不正確，請確認是否選錯檔案。');
+        }
+      };
+      reader.readAsText(file);
+      event.target.value = ''; // 清除 input，讓同一檔案下次還能再選
+    }
+
+    // 啟動
+    init();
+  </script>
+</body>
+</html>
